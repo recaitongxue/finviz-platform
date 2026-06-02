@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金融数据可视化分析平台 - Python版</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="header">
+        <h1>🐍 金融数据可视化分析平台 (Python版)</h1>
+        <p>基于Python数据分析、机器学习预测、专业可视化</p>
+    </header>
+
+    <div class="container">
+        <aside class="sidebar">
+            <div class="section">
+                <h3>📁 数据源分类</h3>
+                <select id="categorySelector" onchange="loadCategory()">
+                    <option value="">选择分类</option>
+                    <option value="etfs">📈 ETF基金</option>
+                    <option value="stocks">📊 个股</option>
+                    <option value="other">📁 其他</option>
+                </select>
+            </div>
+            
+            <div class="section">
+                <h3>📋 选择数据源</h3>
+                <select id="dataSelector" onchange="loadData()">
+                    <option value="">请先选择分类</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <h3>📈 可视化类型</h3>
+                <div class="chart-options">
+                    <label><input type="radio" name="chartType" value="kline" checked> K线图</label>
+                    <label><input type="radio" name="chartType" value="line"> 折线图</label>
+                    <label><input type="radio" name="chartType" value="bar"> 柱状图</label>
+                    <label><input type="radio" name="chartType" value="area"> 面积图</label>
+                    <label><input type="radio" name="chartType" value="scatter"> 散点图</label>
+                    <label><input type="radio" name="chartType" value="heatmap"> 热力图</label>
+                    <label><input type="radio" name="chartType" value="boxplot"> 箱线图</label>
+                    <label><input type="radio" name="chartType" value="pie"> 饼图</label>
+                    <label><input type="radio" name="chartType" value="technical"> 技术指标</label>
+                    <label><input type="radio" name="chartType" value="distribution"> 分布图</label>
+                    <label><input type="radio" name="chartType" value="returns"> 收益率</label>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>📅 时间筛选</h3>
+                <input type="date" id="startDate">
+                <input type="date" id="endDate">
+                <button onclick="filterData()">应用筛选</button>
+            </div>
+
+            <div class="section">
+                <h3>📤 数据管理</h3>
+                <input type="file" id="fileInput" accept=".txt,.csv" onchange="uploadData()">
+                <button onclick="exportData()">导出数据</button>
+            </div>
+
+            <div class="section">
+                <h3>🤖 预测模型</h3>
+                <select id="modelSelector">
+                    <option value="ensemble">集成模型 (推荐)</option>
+                    <option value="random_forest">随机森林</option>
+                    <option value="gradient_boosting">梯度提升</option>
+                    <option value="linear">线性回归</option>
+                </select>
+                <input type="number" id="predictDays" placeholder="预测天数" value="30" min="1" max="100">
+                <button onclick="runPrediction()">运行预测</button>
+                <button onclick="compareModels()">模型对比</button>
+            </div>
+
+            <div class="section">
+                <h3>📊 高级分析</h3>
+                <button onclick="showIndicators()">技术指标</button>
+                <button onclick="showCorrelation()">相关性分析</button>
+                <button onclick="showMonthly()">月度汇总</button>
+                <button onclick="showOutliers()">异常值检测</button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">数据条数</span>
+                    <span class="stat-value" id="statCount">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">平均收盘价</span>
+                    <span class="stat-value" id="statAvgClose">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">最高收盘价</span>
+                    <span class="stat-value" id="statMaxClose">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">最低收盘价</span>
+                    <span class="stat-value" id="statMinClose">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">平均交易量</span>
+                    <span class="stat-value" id="statAvgVolume">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">波动率</span>
+                    <span class="stat-value" id="statVolatility">0</span>
+                </div>
+            </div>
+
+            <div class="chart-container" id="mainChartContainer">
+                <div id="mainChart" class="chart"></div>
+            </div>
+
+            <div class="prediction-section" id="predictionSection" style="display: none;">
+                <h3>🤖 预测结果</h3>
+                <div id="predictionChart" class="chart"></div>
+                <div class="prediction-summary">
+                    <div class="pred-item">
+                        <span>预测趋势:</span>
+                        <span id="predTrend">-</span>
+                    </div>
+                    <div class="pred-item">
+                        <span>总收益率:</span>
+                        <span id="predTotalReturn">-</span>
+                    </div>
+                    <div class="pred-item">
+                        <span>当前价格:</span>
+                        <span id="predLastPrice">-</span>
+                    </div>
+                    <div class="pred-item">
+                        <span>预测天数:</span>
+                        <span id="predDays">-</span>
+                    </div>
+                    <div class="pred-item">
+                        <span>置信水平:</span>
+                        <span id="predConfidence">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analysis-section" id="analysisSection" style="display: none;">
+                <h3>📊 分析结果</h3>
+                <div id="analysisChart" class="chart"></div>
+                <div id="analysisTable" class="analysis-table"></div>
+            </div>
+        </main>
+    </div>
+
+    <footer class="footer">
+        <p>金融数据可视化分析平台 (Python版) © 2024</p>
+    </footer>
+
+    <script src="app_python.js"></script>
+</body>
+</html>

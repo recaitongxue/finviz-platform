@@ -1,0 +1,72 @@
+# Python编译文件和缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 虚拟环境
+venv/
+env/
+.env/
+.env
+.env.local
+
+# 数据目录 - 数据文件较大，不适合上传
+Data/*
+
+
+# 模型文件
+models/
+*.pth
+*.pt
+*.h5
+*.joblib
+*.pickle
+
+# 日志文件
+*.log
+logs/
+
+# IDE配置
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS相关文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# 输出文件
+output/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# 数据库文件
+*.db
+*.sqlite
+
+# 图片目录（如果包含大图片）
+image/
+
+# Flask开发服务器文件
+instance/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 配置文件（如果包含敏感信息）
+config.py
+settings.py
