@@ -83,9 +83,13 @@ def load_data():
         if data_source not in STOCK_NAMES:
             return jsonify({'error': '无效的数据源'}), 400
         
-        period = request.json.get('period', '5y')
+        start_date = request.json.get('start_date')
+        end_date = request.json.get('end_date')
         
-        data = processor.load_from_yfinance(data_source.upper(), period)
+        if start_date and end_date:
+            data = processor.load_from_yfinance_by_date(data_source.upper(), start_date, end_date)
+        else:
+            data = processor.load_from_yfinance(data_source.upper(), '5y')
         
         return jsonify({
             'success': True,
@@ -141,7 +145,8 @@ def get_date_range():
         return jsonify({
             'success': True,
             'start_date': data['Date'].min().strftime('%Y-%m-%d'),
-            'end_date': data['Date'].max().strftime('%Y-%m-%d')
+            'end_date': data['Date'].max().strftime('%Y-%m-%d'),
+            'earliest_date': processor.get_earliest_date(request.args.get('symbol', 'SPY'))
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

@@ -77,10 +77,11 @@ async function loadData() {
         await updateStatistics();
         await updateChart();
         
-        const rangeResult = await apiRequest('/data/range');
+        const rangeResult = await apiRequest(`/data/range?symbol=${source}`);
         if (rangeResult && rangeResult.success) {
             document.getElementById('startDate').value = rangeResult.start_date;
             document.getElementById('endDate').value = rangeResult.end_date;
+            document.getElementById('dateRangeInfo').textContent = `(最早: ${rangeResult.earliest_date})`;
         }
         
         document.getElementById('predictionSection').style.display = 'none';
@@ -140,13 +141,21 @@ function getChartType() {
 async function filterData() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
+    const selector = document.getElementById('dataSelector');
+    const source = selector.value;
+    
+    if (!source) {
+        alert('请先选择股票');
+        return;
+    }
     
     if (!startDate || !endDate) {
         alert('请选择开始和结束日期');
         return;
     }
     
-    const result = await apiRequest('/data/filter', 'POST', {
+    const result = await apiRequest('/data/load', 'POST', {
+        source,
         start_date: startDate,
         end_date: endDate
     });

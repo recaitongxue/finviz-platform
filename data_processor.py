@@ -34,6 +34,19 @@ class FinancialDataProcessor:
         self.filtered_data = self.data.copy()
         return self.data
     
+    def get_earliest_date(self, symbol: str) -> str:
+        if not YFINANCE_AVAILABLE:
+            raise ImportError('yfinance 库未安装，请运行: pip install yfinance')
+        
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period='max')
+        
+        if df.empty:
+            raise ValueError(f'无法获取 {symbol} 的数据')
+        
+        earliest_date = df.index.min()
+        return earliest_date.strftime('%Y-%m-%d')
+    
     def load_from_yfinance(self, symbol: str, period: str = "5y") -> pd.DataFrame:
         if not YFINANCE_AVAILABLE:
             raise ImportError('yfinance 库未安装，请运行: pip install yfinance')
@@ -43,6 +56,38 @@ class FinancialDataProcessor:
         
         if df.empty:
             raise ValueError(f'无法获取 {symbol} 的数据')
+        
+        df = df.reset_index()
+        df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
+        
+        required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+        df = df[required_columns]
+        
+        df = df.sort_values('Date')
+        df = df.reset_index(drop=True)
+        
+        self.data = df
+        self.filtered_data = df.copy()
+        return self.data
+    
+    def load_from_yfinance_by_date(self, symbol: str, start_date: str, end_date: str) -> pd.DataFrame:
+        if not YFINANCE_AVAILABLE:
+            raise ImportError('yfinance 库未安装，请运行: pip install yfinance')
+        
+        try:
+            start = pd.to_datetime(start_date)
+            end = pd.to_datetime(end_date)
+        except Exception as e:
+            raise ValueError(f'日期解析错误: {str(e)}')
+        
+        if start > end:
+            raise ValueError('开始日期不能大于结束日期')
+        
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(start=start.strftime('%Y-%m-%d'), end=end.strftime('%Y-%m-%d'))
+        
+        if df.empty:
+            raise ValueError(f'无法获取 {symbol} 在 {start_date} 到 {end_date} 期间的数据')
         
         df = df.reset_index()
         df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
@@ -83,6 +128,14 @@ class FinancialDataProcessor:
         
         if start > end:
             raise ValueError('开始日期不能大于结束日期')
+        
+        data_min_date = self.data['Date'].min()
+        data_max_date = self.data['Date'].max()
+        
+        if start < data_min_date:
+            start = data_min_date
+        if end > data_max_date:
+            end = data_max_date
         
         self.filtered_data = self.data[
             (self.data['Date'] >= start) & 
