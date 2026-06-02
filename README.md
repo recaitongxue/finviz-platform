@@ -1,359 +1,443 @@
-# 金融数据可视化分析平台
+# 金融数据可视化技术
 
-基于 Python Flask + Plotly 构建的金融时间序列数据可视化分析平台，支持**实时数据获取**、多样化图表展示、统计分析和机器学习预测。
+本项目是一个基于 Python 的金融数据可视化分析平台，展示如何使用 **Plotly** 进行交互式数据可视化，数据通过 **yfinance** 从 Yahoo Finance 实时获取。
 
 ---
 
-## 📁 项目结构
+## 一、项目概述
+
+### 课程目标
+
+- 掌握 Python 数据可视化技术（Plotly）
+- 理解金融时间序列数据的获取与处理
+- 实现多种图表类型的交互式展示
+
+### 技术亮点
+
+- ✅ 使用 yfinance 实时获取股票数据
+- ✅ 基于 Plotly 实现 11 种交互式图表
+- ✅ Flask 后端提供 RESTful API
+- ✅ 深色主题可视化设计
+
+---
+
+## 二、数据获取技术
+
+### 2.1 数据源
+
+项目使用 **yfinance** 库从 Yahoo Finance 获取实时股票数据：
+
+```python
+import yfinance as yf
+
+# 获取 SPY 股票数据（5年历史）
+ticker = yf.Ticker('SPY')
+df = ticker.history(period='5y')
+```
+
+### 2.2 获取的数据结构
+
+获取的数据包含 **6 个核心字段**：
+
+| 字段   | 类型       | 说明           |
+| ------ | ---------- | -------------- |
+| Date   | datetime64 | 日期（无时区） |
+| Open   | float64    | 开盘价         |
+| High   | float64    | 最高价         |
+| Low    | float64    | 最低价         |
+| Close  | float64    | 收盘价         |
+| Volume | int64      | 交易量         |
+
+### 2.3 数据处理流程
+
+```
+yfinance获取 → 重置索引 → 时区处理 → 列筛选 → 排序 → 存储
+```
+
+核心处理代码（`data_processor.py`）：
+
+```python
+def load_from_yfinance(self, symbol: str, period: str = "5y") -> pd.DataFrame:
+    ticker = yf.Ticker(symbol)
+    df = ticker.history(period=period)
+  
+    df = df.reset_index()
+    df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
+  
+    required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+    df = df[required_columns]
+  
+    df = df.sort_values('Date')
+    df = df.reset_index(drop=True)
+  
+    return df
+```
+
+### 2.4 支持的股票/ETF
+
+**ETF基金（24只）**：SPY、QQQ、XLE、XLF、XLV、XLK、XLP、XLY、XLI、XLU、VTI、VEA、VWO、BND、GLD、SLV、USO、UNG、EFA、EEM、IWM、MDY、DVY、SDY
+
+**个股（23只）**：AAPL、MSFT、GOOGL、GOOG、AMZN、TSLA、META、NVDA、AMD、NFLX、BABA、JD、PDD、BIDU、TCEHY、JPM、BAC、C、WFC、GS、MS、V、MA
+
+---
+
+## 三、可视化技术实现
+
+### 3.1 可视化库
+
+项目主要使用 **Plotly** 进行交互式可视化，辅以 matplotlib 和 seaborn：
+
+| 库                   | 用途         | 特点       |
+| -------------------- | ------------ | ---------- |
+| plotly.graph_objects | 核心图表对象 | 高度可定制 |
+| plotly.express       | 快速图表生成 | 简洁API    |
+| plotly.subplots      | 子图布局     | 多图组合   |
+| matplotlib           | 备用渲染     | 传统绘图   |
+| seaborn              | 统计图表     | 美观样式   |
+
+### 3.2 图表类型及实现
+
+#### 1. K线图（Candlestick Chart）
+
+**技术实现**：使用 `plotly.graph_objects.Candlestick`
+
+```python
+fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03)
+
+fig.add_trace(go.Candlestick(
+    x=data['Date'],
+    open=data['Open'],
+    high=data['High'],
+    low=data['Low'],
+    close=data['Close'],
+    increasing_line_color='#00da3c',   # 上涨绿色
+    decreasing_line_color='#ec0000'    # 下跌红色
+), row=1, col=1)
+
+fig.add_trace(go.Bar(
+    x=data['Date'],
+    y=data['Volume'],
+    marker_color='#3a7bd5'
+), row=2, col=1)
+```
+
+**功能特点**：双面板布局，上方显示 K线，下方显示交易量
+
+#### 2. 折线图（Line Chart）
+
+**技术实现**：使用 `plotly.graph_objects.Scatter`
+
+```python
+fig.add_trace(go.Scatter(
+    x=data['Date'],
+    y=data['Close'],
+    mode='lines',
+    line=dict(color='#00d2ff', width=2),
+    fill='tozeroy',
+    fillcolor='rgba(0, 210, 255, 0.2)'
+))
+```
+
+**功能特点**：叠加开盘价和收盘价，带渐变填充效果
+
+#### 3. 柱状图（Bar Chart）
+
+**技术实现**：使用 `plotly.graph_objects.Bar`
+
+```python
+colors = ['#00da3c' if close >= open else '#ec0000' for ...]
+
+fig.add_trace(go.Bar(
+    x=data['Date'],
+    y=data['Volume'],
+    marker_color=colors,
+    opacity=0.8
+))
+```
+
+**功能特点**：根据涨跌动态着色，仅显示最近50条数据
+
+#### 4. 面积图（Area Chart）
+
+**技术实现**：使用 `plotly.graph_objects.Scatter` 的 `fill` 参数
+
+```python
+fig.add_trace(go.Scatter(
+    x=data['Date'],
+    y=data['High'],
+    mode='lines',
+    fill=None
+))
+fig.add_trace(go.Scatter(
+    x=data['Date'],
+    y=data['Low'],
+    mode='lines',
+    fill='tonexty',
+    fillcolor='rgba(52, 152, 219, 0.2)'
+))
+```
+
+**功能特点**：展示最高价与最低价之间的区域
+
+#### 5. 散点图（Scatter Plot）
+
+**技术实现**：使用 `plotly.express.scatter`
+
+```python
+fig = px.scatter(
+    data,
+    x='Volume',
+    y='Close',
+    color=data['Close'].pct_change().fillna(0),
+    color_continuous_scale='RdYlGn'
+)
+```
+
+**功能特点**：颜色映射涨跌幅，展示交易量与收盘价的相关性
+
+#### 6. 相关性热力图（Heatmap）
+
+**技术实现**：使用 `plotly.graph_objects.Heatmap`
+
+```python
+corr_matrix = data[['Open', 'High', 'Low', 'Close', 'Volume']].corr()
+
+fig = go.Figure(data=go.Heatmap(
+    z=corr_matrix.values,
+    x=corr_matrix.columns,
+    y=corr_matrix.columns,
+    colorscale='RdBu',
+    zmid=0,
+    text=corr_matrix.values.round(2),
+    texttemplate='%{text}'
+))
+```
+
+**功能特点**：展示5个数值字段之间的相关性
+
+#### 7. 箱线图（Boxplot）
+
+**技术实现**：使用 `plotly.graph_objects.Box`
+
+```python
+data['Month'] = data['Date'].dt.month
+monthly_data = data.groupby('Month')['Close'].apply(list)
+
+for month in range(1, 13):
+    fig.add_trace(go.Box(
+        y=monthly_data[month],
+        name=f'{month}月',
+        boxpoints='outliers'
+    ))
+```
+
+**功能特点**：按月份分组，展示收盘价的分布特征
+
+#### 8. 饼图（Pie Chart）
+
+**技术实现**：使用 `plotly.graph_objects.Pie`
+
+```python
+data['Month'] = data['Date'].dt.to_period('M')
+monthly_volume = data.groupby('Month')['Volume'].sum().tail(8)
+
+fig = go.Figure(data=[go.Pie(
+    labels=[str(m) for m in monthly_volume.index],
+    values=monthly_volume.values,
+    hole=0.3,
+    textinfo='label+percent'
+)])
+```
+
+**功能特点**：环形饼图，展示最近8个月交易量占比
+
+#### 9. 技术指标分析图
+
+**技术实现**：多面板子图布局
+
+```python
+fig = make_subplots(rows=3, cols=1, shared_xaxes=True, row_heights=[0.5, 0.25, 0.25])
+
+data['MA'] = data['Close'].rolling(window=20).mean()
+data['Returns'] = data['Close'].pct_change() * 100
+
+# 面板1：收盘价 + 均线
+# 面板2：涨跌幅柱状图
+# 面板3：交易量折线图
+```
+
+**功能特点**：三面板展示，包含均线、涨跌幅、交易量
+
+#### 10. 分布直方图（Distribution）
+
+**技术实现**：使用 `plotly.graph_objects.Histogram`
+
+```python
+fig = make_subplots(rows=1, cols=2, subplot_titles=('收盘价分布', '交易量分布'))
+
+fig.add_trace(go.Histogram(
+    x=data['Close'],
+    nbinsx=30,
+    marker_color='#00d2ff'
+), row=1, col=1)
+```
+
+**功能特点**：双面板对比收盘价和交易量的分布
+
+#### 11. 收益率分布图（Returns Distribution）
+
+**技术实现**：结合直方图和 Q-Q 图
+
+```python
+returns = data['Close'].pct_change().dropna() * 100
+
+# 直方图
+fig.add_trace(go.Histogram(x=returns, nbinsx=50), row=1, col=1)
+
+# Q-Q图（正态分布检验）
+from scipy import stats
+theoretical_quantiles = stats.norm.ppf(np.linspace(0.01, 0.99, len(returns)))
+fig.add_trace(go.Scatter(x=theoretical_quantiles, y=sample_quantiles), row=1, col=2)
+```
+
+**功能特点**：检验收益率是否符合正态分布
+
+### 3.3 可视化设计特点
+
+| 设计要素   | 实现方式                       |
+| ---------- | ------------------------------ |
+| 主题风格   | plotly_dark 深色主题           |
+| 配色方案   | 绿色上涨、红色下跌、蓝色中性   |
+| 交互功能   | 缩放、平移、悬停提示、图例切换 |
+| 响应式布局 | 自适应高度、子图间距优化       |
+
+---
+
+## 四、项目结构
 
 ```
 finviz-platform/
-├── app.py                 # Flask后端API服务（核心）
-├── data_processor.py      # 数据处理模块（支持yfinance）
-├── visualizer.py          # 可视化模块(Plotly)
-├── predictor.py           # 机器学习预测模块
+├── app.py                 # Flask后端API（核心路由）
+├── data_processor.py      # 数据处理模块（yfinance获取）
+├── visualizer.py          # 可视化模块（Plotly图表生成）
+├── predictor.py           # 机器学习预测模块（可选）
 ├── requirements.txt       # Python依赖清单
 ├── index_python.html      # 前端页面
-├── app_python.js          # 前端JavaScript逻辑
-├── style.css              # 样式文件
-└── Data/                  # 预留数据目录（可选本地数据）
-    └── .gitkeep           # Git占位文件
+├── app_python.js          # 前端交互逻辑
+└── style.css              # 样式文件
 ```
 
----
+### 4.1 核心文件说明
 
-## ✨ 主要更新
+| 文件              | 功能            | 核心类/函数            |
+| ----------------- | --------------- | ---------------------- |
+| app.py            | RESTful API服务 | Flask路由定义          |
+| data_processor.py | 数据获取与处理  | FinancialDataProcessor |
+| visualizer.py     | 图表生成        | FinancialVisualizer    |
+| predictor.py      | 预测模型        | Predictor              |
 
-### 🔥 新增功能
-- ✅ **实时数据获取** - 使用 yfinance 从 Yahoo Finance 实时获取股票数据
-- ✅ **无需本地数据文件** - 不再依赖庞大的 CSV 数据文件
-- ✅ **支持 47+ 只股票/ETF** - 预定义热门股票和指数基金
+### 4.2 API接口
 
-### 🗑️ 移除依赖
-- 不再需要 `Data/ETFs/` 和 `Data/Stocks/` 目录
-- 数据文件无需上传到 GitHub
-
----
-
-## 📸 界面预览
-
-以下是平台的主要功能界面截图：
-
-![平台界面预览](image/README/1780403497096.png)
-
----
-
-## 📊 数据来源
-
-### 实时数据获取
-
-平台使用 **yfinance** 库从 Yahoo Finance 获取实时股票数据：
-
-| 数据类型 | 来源 | 更新频率 |
-|----------|------|----------|
-| 股票价格 | Yahoo Finance | 实时 |
-| ETF数据 | Yahoo Finance | 实时 |
-| 技术指标 | 本地计算 | 实时 |
-
-### 支持的股票/ETF
-
-**ETF基金**：SPY(标普500)、QQQ(纳斯达克100)、XLE(能源)、XLF(金融)、XLV(医疗)等 24 只
-
-**个股**：AAPL(苹果)、MSFT(微软)、TSLA(特斯拉)、NVDA(英伟达)、GOOGL(谷歌)等 23 只
+| 接口                       | 方法 | 说明               |
+| -------------------------- | ---- | ------------------ |
+| `/api/data/sources`      | GET  | 获取支持的股票列表 |
+| `/api/data/load`         | POST | 加载股票数据       |
+| `/api/data/filter`       | POST | 日期筛选           |
+| `/api/data/statistics`   | GET  | 统计指标           |
+| `/api/visualize/kline`   | POST | 生成K线图          |
+| `/api/visualize/line`    | POST | 生成折线图         |
+| `/api/visualize/heatmap` | POST | 生成热力图         |
+| `/api/predict`           | POST | 执行预测           |
 
 ---
 
-## 🛠️ 技术栈
+## 五、安装与运行
 
-### 后端技术
+### 5.1 环境要求
 
-| 技术 | 版本 | 用途 | 核心功能 |
-|------|------|------|----------|
-| Python | 3.8+ | 编程语言 | 核心业务逻辑 |
-| Flask | 3.0+ | Web框架 | RESTful API服务 |
-| Flask-CORS | 4.0+ | 跨域支持 | 前端跨域请求 |
-| pandas | 2.1+ | 数据处理 | 数据清洗、转换、分析 |
-| numpy | 1.26+ | 数值计算 | 矩阵运算、统计分析 |
-| scikit-learn | 1.3+ | 机器学习 | 预测模型训练 |
-| plotly | 5.18+ | 可视化库 | 交互式图表生成 |
-| **yfinance** | 0.2+ | 数据获取 | 从Yahoo Finance获取实时数据 |
-
-### 前端技术
-
-| 技术 | 用途 | 核心功能 |
-|------|------|----------|
-| HTML5 | 页面结构 | 布局与组件定义 |
-| CSS3 | 样式设计 | 响应式布局、深色主题 |
-| JavaScript ES6+ | 交互逻辑 | API调用、图表渲染、用户交互 |
-| Plotly.js | 图表渲染 | 交互式可视化展示 |
-
----
-
-## 🎯 功能特性
-
-### 1. 实时数据获取
-- ✅ 从 Yahoo Finance 实时获取股票数据
-- ✅ 支持 47+ 只预定义股票/ETF
-- ✅ 自动分类展示（ETF基金/个股）
-
-### 2. 多样化可视化图表
-
-| 图表类型 | 说明 | 数据维度 |
-|----------|------|----------|
-| 📈 **K线图** | 蜡烛图展示OHLC数据 | Date, Open, High, Low, Close, Volume |
-| 📉 **折线图** | 收盘价/开盘价趋势 | Date, Open, Close |
-| 📊 **柱状图** | 交易量展示 | Date, Volume |
-| 📋 **面积图** | 最高价/最低价区间 | Date, High, Low |
-| 🔵 **散点图** | 交易量vs收盘价相关性 | Volume, Close |
-| 🗺️ **热力图** | 特征相关性矩阵 | Open, High, Low, Close, Volume |
-| 📦 **箱线图** | 月度价格分布 | Month, Close |
-| 🥧 **饼图** | 月度交易量占比 | Month, Volume |
-| 📈 **技术指标** | MA/收益率/交易量综合 | Date, Close, MA, Returns |
-| 📊 **分布直方图** | 价格与交易量分布 | Close, Volume |
-| 📊 **收益率分布** | 收益率直方图+Q-Q图 | Returns |
-
-### 3. 统计分析
-- ✅ 数据条数统计
-- ✅ 平均收盘价
-- ✅ 最高/最低收盘价
-- ✅ 平均交易量
-- ✅ 波动率计算
-
-### 4. 时间筛选
-- ✅ 开始/结束日期选择
-- ✅ 实时数据过滤
-
-### 5. 机器学习预测
-- ✅ 线性回归预测
-- ✅ 随机森林预测
-- ✅ 梯度提升预测
-- ✅ 集成模型预测
-- ✅ 置信区间估计
-
----
-
-## 🔧 安装与运行
-
-### 环境要求
 - Python 3.8+
-- Windows 10/11 或 Linux/Mac
+- 依赖库：见 `requirements.txt`
 
-### 安装步骤
+### 5.2 安装步骤
 
-1. **进入项目目录**
 ```bash
+# 克隆项目
 cd finviz-platform
-```
 
-2. **创建并激活虚拟环境**
-```bash
-# 使用 venv
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
-```
-
-3. **安装依赖**
-```bash
+# 安装依赖
 pip install -r requirements.txt
-```
 
-4. **启动服务**
-```bash
+# 启动服务
 python app.py
+
+# 访问应用
+# 浏览器打开: http://localhost:5000
 ```
 
-5. **访问应用**
-打开浏览器访问：http://localhost:5000
+### 5.3 依赖清单
+
+| 库           | 版本   | 用途     |
+| ------------ | ------ | -------- |
+| flask        | >=3.0  | Web框架  |
+| flask-cors   | >=4.0  | 跨域支持 |
+| pandas       | >=2.1  | 数据处理 |
+| numpy        | >=1.26 | 数值计算 |
+| plotly       | >=5.18 | 可视化   |
+| yfinance     | >=0.2  | 数据获取 |
+| scikit-learn | >=1.3  | 机器学习 |
 
 ---
 
-## 🚀 部署到云端
+## 六、可视化效果展示
 
-### 推荐平台
+### 6.1 K线图效果
 
-| 平台 | 免费额度 | 适合项目 |
-|------|---------|---------|
-| **Render** | 750小时/月 | Flask 后端 ✅ |
-| **Railway** | $5/月 | Flask 后端 ✅ |
-| **Vercel** | 无限 | 纯前端 |
+K线图展示股票的开盘价、收盘价、最高价、最低价，配合交易量柱状图：
 
-### 部署步骤（Render为例）
+- 绿色实体：收盘价 ≥ 开盘价（上涨）
+- 红色实体：收盘价 < 开盘价（下跌）
+- 下方柱状图展示对应日期的交易量
 
-1. **推送到 GitHub**
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/your-username/finviz-platform.git
-git push -u origin main
-```
+### 6.2 技术指标图效果
 
-2. **连接 Render**
-- 访问 https://render.com
-- 新建 Web Service
-- 选择 GitHub 仓库
-- 配置：
-  - Build Command: `pip install -r requirements.txt`
-  - Start Command: `gunicorn app:app`
+三面板布局：
 
-3. **启动服务**
-- Render 会自动构建并部署
-- 获取访问 URL
+- 上：收盘价 + 20日均线
+- 中：每日涨跌幅（百分比）
+- 下：交易量趋势
+
+### 6.3 相关性热力图效果
+
+展示5个特征之间的皮尔逊相关系数：
+
+- 红色：正相关
+- 蓝色：负相关
+- 颜色深浅表示相关程度
 
 ---
 
-## 🌐 API接口说明
+## 七、课程技术要点总结
 
-### 数据源管理
+### 7.1 数据获取技术
 
-| 接口 | 方法 | 说明 | 参数 |
-|------|------|------|------|
-| `/api/data/sources` | GET | 获取所有数据源分类 | 无 |
-| `/api/data/load` | POST | 加载指定数据源 | `source`: 股票代码（如 spy, aapl） |
-| `/api/data/range` | GET | 获取数据日期范围 | 无 |
-| `/api/data/filter` | POST | 按日期筛选数据 | `start_date`, `end_date` |
-| `/api/data/statistics` | GET | 获取统计指标 | 无 |
+- 使用 yfinance 库访问 Yahoo Finance API
+- 处理时区信息（tz_localize(None)）
+- 数据清洗与标准化
 
-### 可视化接口
+### 7.2 可视化技术
 
-| 接口 | 方法 | 说明 | 返回格式 |
-|------|------|------|----------|
-| `/api/visualize/kline` | POST | K线图 | JSON(Plotly) |
-| `/api/visualize/line` | POST | 折线图 | JSON(Plotly) |
-| `/api/visualize/bar` | POST | 柱状图 | JSON(Plotly) |
-| `/api/visualize/area` | POST | 面积图 | JSON(Plotly) |
-| `/api/visualize/scatter` | POST | 散点图 | JSON(Plotly) |
-| `/api/visualize/heatmap` | POST | 热力图 | JSON(Plotly) |
-| `/api/visualize/boxplot` | POST | 箱线图 | JSON(Plotly) |
-| `/api/visualize/pie` | POST | 饼图 | JSON(Plotly) |
-| `/api/visualize/technical` | POST | 技术指标图 | JSON(Plotly) |
-| `/api/visualize/distribution` | POST | 分布直方图 | JSON(Plotly) |
-| `/api/visualize/returns` | POST | 收益率分布图 | JSON(Plotly) |
+- Plotly 的交互式图表特性
+- 子图布局设计（make_subplots）
+- 颜色映射与视觉编码
+- 图表导出为 JSON 格式供前端渲染
 
-### 预测接口
+### 7.3 Web技术
 
-| 接口 | 方法 | 说明 | 参数 |
-|------|------|------|------|
-| `/api/predict` | POST | 执行预测 | `days`: 预测天数, `model`: 模型类型 |
+- Flask RESTful API 设计
+- CORS 跨域配置
+- JSON 数据传输
 
-### 请求示例
 
-**加载数据源**
-```bash
-curl -X POST http://localhost:5000/api/data/load \
-  -H "Content-Type: application/json" \
-  -d '{"source": "spy"}'
-```
+**技术栈**
 
-**日期筛选**
-```bash
-curl -X POST http://localhost:5000/api/data/filter \
-  -H "Content-Type: application/json" \
-  -d '{"start_date": "2021-01-01", "end_date": "2026-06-01"}'
-```
-
-**生成K线图**
-```bash
-curl -X POST http://localhost:5000/api/visualize/kline
-```
-
-**执行预测**
-```bash
-curl -X POST http://localhost:5000/api/predict \
-  -H "Content-Type: application/json" \
-  -d '{"days": 30, "model": "ensemble"}'
-```
-
----
-
-## 📈 可视化技术实现
-
-### 核心架构
-
-```
-┌─────────────────────────────────────────────────────┐
-│                    系统架构                          │
-├─────────────────────────────────────────────────────┤
-│  前端 (Plotly.js)                                  │
-│  ┌─────────────────────────────────────────────┐    │
-│  │ 图表渲染层: Plotly.newPlot()                │    │
-│  │ 交互层: 缩放、平移、悬停提示、图例切换       │    │
-│  └─────────────────────────────────────────────┘    │
-│                          ↓ JSON                      │
-│  ┌─────────────────────────────────────────────┐    │
-│  │ 后端 (Flask + Plotly Python)                │    │
-│  │ 图表生成层: FinancialVisualizer类           │    │
-│  │ 数据处理层: FinancialDataProcessor类        │    │
-│  └─────────────────────────────────────────────┘    │
-│                          ↓ API                       │
-│  ┌─────────────────────────────────────────────┐    │
-│  │ 数据源: Yahoo Finance (yfinance)            │    │
-│  └─────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────┘
-```
-
-### 数据加载流程
-
-```
-用户选择股票 → API请求 → yfinance获取数据 → 数据处理 → 返回前端
-     ↓
-用户选择图表类型 → API请求 → 生成图表JSON → 返回前端渲染
-```
-
----
-
-## 🔒 安全特性
-
-| 安全措施 | 说明 |
-|----------|------|
-| 数据验证 | 验证股票代码有效性 |
-| 异常处理 | 统一错误响应格式 |
-| CORS跨域控制 | 配置允许的来源 |
-| 请求参数检查 | 验证日期格式等 |
-
----
-
-## 📝 配置说明
-
-### 股票名称映射 (`app.py`)
-
-```python
-STOCK_NAMES = {
-    'spy': '标普500ETF',
-    'qqq': '纳斯达克100ETF',
-    'aapl': '苹果公司',
-    # ... 更多映射
-}
-```
-
-### 添加新股票
-
-只需在 `STOCK_NAMES` 字典中添加新的股票代码和中文名称即可。
-
----
-
-## 🐛 常见问题与解决方案
-
-| 问题 | 原因 | 解决方案 |
-|------|------|----------|
-| 数据加载失败 | 网络问题或股票代码错误 | 检查网络连接，确认股票代码正确 |
-| 图表不显示 | Plotly JSON格式问题 | 检查浏览器控制台错误 |
-| API请求失败 | 服务器未启动 | 确保 Flask 服务正在运行 |
-| yfinance安装失败 | 网络问题 | 使用国内PyPI镜像或检查网络 |
-
----
-
-## 📄 许可证
-
-MIT License
-
-## 🤝 贡献
-
-欢迎提交Issue和Pull Request！
-
----
-
-**项目版本**: v2.0 (支持 yfinance)  
-**最后更新**: 2026年  
-**作者**: Financial Data Analysis Team
+：Python + Flask + Plotly + yfinance
