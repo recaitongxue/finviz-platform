@@ -17,8 +17,6 @@ processor = FinancialDataProcessor()
 visualizer = FinancialVisualizer()
 predictor = FinancialPredictor()
 
-DATA_DIR = 'Data'
-
 STOCK_NAMES = {
     'spy': '标普500ETF', 'qqq': '纳斯达克100ETF',
     'aapl': '苹果公司', 'msft': '微软公司', 'amzn': '亚马逊', 'googl': '谷歌', 'fb': 'Meta(Facebook)',
@@ -36,25 +34,7 @@ STOCK_NAMES = {
     'agg': 'iShares核心美国债券ETF', 'lqd': 'iShares投资级债券ETF', 'hyg': 'iShares高收益债券ETF',
 }
 
-def load_all_data_files():
-    data_files = {}
-    data_categories = {}
-    for root, dirs, files in os.walk(DATA_DIR):
-        for file in files:
-            if file.endswith('.us.txt'):
-                name = file.replace('.us.txt', '')
-                filepath = os.path.join(root, file)
-                data_files[name] = filepath
-                
-                if 'ETFs' in root:
-                    data_categories[name] = 'etfs'
-                elif 'Stocks' in root:
-                    data_categories[name] = 'stocks'
-                else:
-                    data_categories[name] = 'other'
-    return data_files, data_categories
-
-data_files, data_categories = load_all_data_files()
+ETF_SYMBOLS = ['spy', 'qqq', 'aadr', 'smh', 'soxx', 'xle', 'xlf', 'xlv', 'xly', 'xlp', 'xli', 'xlk', 'vgt', 'vti', 'voo', 'iwm', 'gld', 'dia', 'iwr', 'ief', 'tlt', 'agg', 'lqd', 'hyg']
 
 
 @app.route('/')
@@ -66,34 +46,28 @@ def index():
 @app.route('/api/data/sources', methods=['GET'])
 def get_sources():
     try:
-        categories = {
-            'etfs': [],
-            'stocks': [],
-            'other': []
-        }
+        etfs = []
+        stocks = []
         
-        for key in sorted(data_files.keys()):
-            name = STOCK_NAMES.get(key.lower(), key.upper())
-            category = data_categories.get(key, 'other')
-            categories[category].append({'id': key, 'name': name})
+        for key in sorted(STOCK_NAMES.keys()):
+            name = STOCK_NAMES[key]
+            if key in ETF_SYMBOLS:
+                etfs.append({'id': key, 'name': name})
+            else:
+                stocks.append({'id': key, 'name': name})
         
         return jsonify({
             'success': True,
             'categories': {
                 'etfs': {
                     'name': 'ETF基金',
-                    'count': len(categories['etfs']),
-                    'items': categories['etfs']
+                    'count': len(etfs),
+                    'items': etfs
                 },
                 'stocks': {
                     'name': '个股',
-                    'count': len(categories['stocks']),
-                    'items': categories['stocks']
-                },
-                'other': {
-                    'name': '其他',
-                    'count': len(categories['other']),
-                    'items': categories['other']
+                    'count': len(stocks),
+                    'items': stocks
                 }
             }
         })
@@ -104,20 +78,14 @@ def get_sources():
 @app.route('/api/data/load', methods=['POST'])
 def load_data():
     try:
-        data_source = request.json.get('source', 'spy')
+        data_source = request.json.get('source', 'spy').lower()
         
-        if data_source not in data_files:
+        if data_source not in STOCK_NAMES:
             return jsonify({'error': '无效的数据源'}), 400
         
-        file_path = data_files[data_source]
-        if not os.path.exists(file_path):
-            return jsonify({'error': '数据文件不存在'}), 404
+        period = request.json.get('period', '5y')
         
-        file_size = os.path.getsize(file_path)
-        if file_size < 50:
-            return jsonify({'error': '数据文件内容为空或太小'}), 400
-        
-        data = processor.load_data(file_path)
+        data = processor.load_from_yfinance(data_source.upper(), period)
         
         return jsonify({
             'success': True,
@@ -127,6 +95,8 @@ def load_data():
                 'end': data['Date'].max().strftime('%Y-%m-%d')
             }
         })
+    except ImportError:
+        return jsonify({'error': 'yfinance 未安装，请运行: pip install yfinance'}), 500
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

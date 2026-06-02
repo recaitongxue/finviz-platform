@@ -5,6 +5,12 @@ from typing import Dict, List, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
+try:
+    import yfinance as yf
+    YFINANCE_AVAILABLE = True
+except ImportError:
+    YFINANCE_AVAILABLE = False
+
 
 class FinancialDataProcessor:
     def __init__(self):
@@ -26,6 +32,29 @@ class FinancialDataProcessor:
         self.data = self.data.sort_values('Date')
         self.data = self.data.reset_index(drop=True)
         self.filtered_data = self.data.copy()
+        return self.data
+    
+    def load_from_yfinance(self, symbol: str, period: str = "5y") -> pd.DataFrame:
+        if not YFINANCE_AVAILABLE:
+            raise ImportError('yfinance 库未安装，请运行: pip install yfinance')
+        
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period=period)
+        
+        if df.empty:
+            raise ValueError(f'无法获取 {symbol} 的数据')
+        
+        df = df.reset_index()
+        df['Date'] = pd.to_datetime(df['Date']).dt.tz_localize(None)
+        
+        required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+        df = df[required_columns]
+        
+        df = df.sort_values('Date')
+        df = df.reset_index(drop=True)
+        
+        self.data = df
+        self.filtered_data = df.copy()
         return self.data
     
     def filter_by_date(self, start_date: str, end_date: str) -> pd.DataFrame:
