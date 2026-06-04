@@ -1,7 +1,12 @@
-const API_BASE = 'http://localhost:5000/api';
+// 根据环境自动选择API地址
+const API_BASE = window.location.hostname === 'localhost' 
+    ? 'http://localhost:5000/api' 
+    : '/api';
 
 let currentData = null;
 let allCategories = null;
+let retryCount = 0;
+const MAX_RETRIES = 3;
 
 async function apiRequest(endpoint, method = 'GET', data = null) {
     const options = {
@@ -15,18 +20,37 @@ async function apiRequest(endpoint, method = 'GET', data = null) {
         options.body = JSON.stringify(data);
     }
     
+    retryCount = 0;
+    return await fetchWithRetry(`${API_BASE}${endpoint}`, options);
+}
+
+async function fetchWithRetry(url, options, retries = MAX_RETRIES) {
     try {
-        const response = await fetch(`${API_BASE}${endpoint}`, options);
-        const result = await response.json();
+        const response = await fetch(url, options);
         
         if (!response.ok) {
-            throw new Error(result.error || '请求失败');
+            throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (!result.success && result.error) {
+            throw new Error(result.error);
         }
         
         return result;
     } catch (error) {
+        if (retries > 0 && (error.message.includes('Failed to fetch') || 
+                           error.message.includes('NetworkError') ||
+                           error.message.includes('net::ERR_'))) {
+            retryCount++;
+            console.log(`网络错误，${retryCount}/${MAX_RETRIES} 次重试...`);
+            await new Promise(resolve => setTimeout(resolve, 2000 * retryCount));
+            return fetchWithRetry(url, options, retries - 1);
+        }
+        
         console.error('API请求错误:', error);
-        alert(`错误: ${error.message}`);
+        alert(`数据加载失败: ${error.message}\n请刷新页面重试`);
         return null;
     }
 }

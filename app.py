@@ -3,8 +3,9 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
+import time
 
 from data_processor import FinancialDataProcessor
 from visualizer import FinancialVisualizer
@@ -16,6 +17,10 @@ CORS(app)
 processor = FinancialDataProcessor()
 visualizer = FinancialVisualizer()
 predictor = FinancialPredictor()
+
+# 数据缓存
+data_cache = {}
+CACHE_DURATION = 300  # 5分钟缓存
 
 STOCK_NAMES = {
     'spy': '标普500ETF', 'qqq': '纳斯达克100ETF',
@@ -86,23 +91,59 @@ def load_data():
         start_date = request.json.get('start_date')
         end_date = request.json.get('end_date')
         
-        if start_date and end_date:
-            data = processor.load_from_yfinance_by_date(data_source.upper(), start_date, end_date)
-        else:
-            data = processor.load_from_yfinance(data_source.upper(), '5y')
+        # 生成缓存键
+        cache_key = f"{data_source}_{start_date}_{end_date}"
         
-        return jsonify({
-            'success': True,
-            'count': len(data),
-            'date_range': {
-                'start': data['Date'].min().strftime('%Y-%m-%d'),
-                'end': data['Date'].max().strftime('%Y-%m-%d')
-            }
-        })
+        # 检查缓存
+        if cache_key in data_cache:
+            cached_data, cached_time = data_cache[cache_key]
+            if time.time() - cached_time < CACHE_DURATION:
+                print(f"使用缓存数据: {cache_key}")
+                return jsonify({
+                    'success': True,
+                    'count': len(cached_data),
+                    'date_range': {
+                        'start': cached_data['Date'].min().strftime('%Y-%m-%d'),
+                        'end': cached_data['Date'].max().strftime('%Y-%m-%d')
+                    },
+                    'cached': True
+                })
+        
+        # 带重试的数据加载
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                if start_date and end_date:
+                    data = processor.load_from_yfinance_by_date(data_source.upper(), start_date, end_date)
+                else:
+                    data = processor.load_from_yfinance(data_source.upper(), '5y')
+                
+                # 保存到缓存
+                data_cache[cache_key] = (data, time.time())
+                
+                return jsonify({
+                    'success': True,
+                    'count': len(data),
+                    'date_range': {
+                        'start': data['Date'].min().strftime('%Y-%m-%d'),
+                        'end': data['Date'].max().strftime('%Y-%m-%d')
+                    }
+                })
+            except Exception as e:
+                last_error = e
+                print(f"数据加载失败，第 {attempt + 1} 次重试: {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(2)  # 等待2秒后重试
+                    continue
+        
+        raise last_error or Exception("数据加载失败")
+        
     except ImportError:
         return jsonify({'error': 'yfinance 未安装，请运行: pip install yfinance'}), 500
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': f'数据加载失败: {str(e)}'}), 500
 
 
 @app.route('/api/data/statistics', methods=['GET'])
