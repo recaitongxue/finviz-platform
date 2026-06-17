@@ -60,6 +60,7 @@ build/
 
 # 图片目录（如果包含大图片）
 image/
+*.png
 
 # Flask开发服务器文件
 instance/
