@@ -180,6 +180,33 @@ body {
     height: 450px;
 }
 
+.chart-description {
+    background: rgba(0, 210, 255, 0.1);
+    border-left: 4px solid #00d2ff;
+    padding: 15px;
+    margin-top: 15px;
+    border-radius: 0 8px 8px 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.chart-description h4 {
+    color: #00d2ff;
+    margin-bottom: 8px;
+    font-size: 1rem;
+}
+
+.chart-description ul {
+    margin-left: 20px;
+    margin-top: 8px;
+}
+
+.chart-description li {
+    margin: 5px 0;
+    color: rgba(255, 255, 255, 0.8);
+}
+
 .prediction-section,
 .analysis-section {
     background: rgba(255, 255, 255, 0.05);
